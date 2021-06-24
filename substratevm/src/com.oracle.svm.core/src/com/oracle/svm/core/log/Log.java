@@ -275,6 +275,13 @@ public abstract class Log implements AutoCloseable {
      * 16-digits.
      */
     @RestrictHeapAccess(access = RestrictHeapAccess.Access.NO_ALLOCATION, mayBeInlined = true, reason = "Must not allocate when logging.")
+    public abstract Log zhex(WordBase value);
+
+    /**
+     * Prints the value, treated as an unsigned value, in hexadecimal format zero filled to
+     * 16-digits.
+     */
+    @RestrictHeapAccess(access = RestrictHeapAccess.Access.NO_ALLOCATION, mayBeInlined = true, reason = "Must not allocate when logging.")
     public abstract Log zhex(long value);
 
     /**
@@ -530,6 +537,11 @@ public abstract class Log implements AutoCloseable {
 
         @Override
         public Log autoflush(boolean onOrOff) {
+            return this;
+        }
+
+        @Override
+        public Log zhex(WordBase value) {
             return this;
         }
 
