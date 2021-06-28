@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2017, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -27,6 +27,7 @@ package com.oracle.graal.pointsto;
 import static com.oracle.graal.pointsto.meta.AnalysisUniverse.ESTIMATED_NUMBER_OF_TYPES;
 import static jdk.vm.ci.common.JVMCIError.shouldNotReachHere;
 
+import java.io.PrintWriter;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -43,6 +44,7 @@ import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongArray;
 
+import com.oracle.graal.pointsto.reports.StatisticsPrinter;
 import org.graalvm.compiler.api.replacements.SnippetReflectionProvider;
 import org.graalvm.compiler.core.common.SuppressFBWarnings;
 import org.graalvm.compiler.core.common.spi.ConstantFieldProvider;
@@ -86,7 +88,7 @@ import jdk.vm.ci.meta.ConstantReflectionProvider;
 import jdk.vm.ci.meta.JavaKind;
 import jdk.vm.ci.meta.JavaType;
 
-public abstract class BigBang {
+public abstract class BigBang implements StaticAnalysisEngine {
 
     private final OptionValues options;
     private final List<DebugHandlersFactory> debugHandlerFactories;
@@ -171,6 +173,33 @@ public abstract class BigBang {
         heapScanningPolicy = PointstoOptions.ExhaustiveHeapScan.getValue(options)
                         ? HeapScanningPolicy.scanAll()
                         : HeapScanningPolicy.skipTypes(skippedHeapTypes());
+    }
+
+    @Override
+    public Timer getAnalysisTimer() {
+        return analysisTimer;
+    }
+
+    @Override
+    public Timer getProcessFeaturesTimer() {
+        return processFeaturesTimer;
+    }
+
+    @Override
+    public void printTimers() {
+        typeFlowTimer.print();
+        checkObjectsTimer.print();
+        processFeaturesTimer.print();
+    }
+
+    @Override
+    public void printTimerStatistics(PrintWriter out) {
+        StatisticsPrinter.print(out, "typeflow_time_ms", typeFlowTimer.getTotalTime());
+        StatisticsPrinter.print(out, "objects_time_ms", checkObjectsTimer.getTotalTime());
+        StatisticsPrinter.print(out, "features_time_ms", processFeaturesTimer.getTotalTime());
+        StatisticsPrinter.print(out, "total_analysis_time_ms", analysisTimer.getTotalTime());
+
+        StatisticsPrinter.printLast(out, "total_memory_bytes", analysisTimer.getTotalMemory());
     }
 
     public boolean strengthenGraalGraphs() {

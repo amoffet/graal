@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2017, 2021, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -36,6 +36,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
+import com.oracle.svm.core.util.VMError;
+import com.oracle.svm.hosted.analysis.SvmStaticAnalysisEngine;
 import org.graalvm.compiler.api.replacements.Fold;
 import org.graalvm.compiler.options.Option;
 import org.graalvm.nativeimage.ImageSingletons;
@@ -293,7 +295,7 @@ public class JNIAccessFeature implements Feature {
             CEntryPointData unpublished = CEntryPointData.createCustomUnpublished();
             wrappers.forEach(wrapper -> {
                 AnalysisMethod analysisWrapper = access.getUniverse().lookup(wrapper);
-                access.getBigBang().addRootMethod(analysisWrapper);
+                access.getStaticAnalysisEngine().addRootMethod(analysisWrapper);
                 analysisWrapper.registerAsEntryPoint(unpublished); // ensures C calling convention
             });
             return jniMethod;
@@ -324,13 +326,20 @@ public class JNIAccessFeature implements Feature {
         }
         // Same as BigBang.addSystemField() and BigBang.addSystemStaticField():
         // create type flows for any subtype of the field's declared type
-        BigBang bigBang = access.getBigBang();
-        TypeFlow<?> declaredTypeFlow = field.getType().getTypeFlow(bigBang, true);
-        if (field.isStatic()) {
-            declaredTypeFlow.addUse(bigBang, field.getStaticFieldFlow());
+
+        SvmStaticAnalysisEngine staticAnalysisEngine = access.getStaticAnalysisEngine();
+        if (staticAnalysisEngine instanceof BigBang) {
+            BigBang bigBang = (BigBang) staticAnalysisEngine;
+            // todo(d-kozak) encapsulate points-to
+            TypeFlow<?> declaredTypeFlow = field.getType().getTypeFlow(bigBang, true);
+            if (field.isStatic()) {
+                declaredTypeFlow.addUse(bigBang, field.getStaticFieldFlow());
+            } else {
+                FieldTypeFlow instanceFieldFlow = field.getDeclaringClass().getContextInsensitiveAnalysisObject().getInstanceFieldFlow(bigBang, field, writable);
+                declaredTypeFlow.addUse(bigBang, instanceFieldFlow);
+            }
         } else {
-            FieldTypeFlow instanceFieldFlow = field.getDeclaringClass().getContextInsensitiveAnalysisObject().getInstanceFieldFlow(bigBang, field, writable);
-            declaredTypeFlow.addUse(bigBang, instanceFieldFlow);
+            throw VMError.shouldNotReachHere("unhandled for reachability yet");
         }
     }
 
